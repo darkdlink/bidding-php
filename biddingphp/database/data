@@ -1,0 +1,158 @@
+-- Tabela de Usuários
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('admin', 'manager', 'analyst', 'viewer') NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Tabela de Órgãos Licitantes
+CREATE TABLE bidding_agencies (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    code VARCHAR(50),
+    website VARCHAR(255),
+    contact_info TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Tabela de Licitações
+CREATE TABLE biddings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    external_id VARCHAR(100), -- ID da licitação no sistema original
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    agency_id INT,
+    bidding_type ENUM('pregão', 'concorrência', 'tomada de preços', 'convite', 'leilão', 'concurso', 'outros') NOT NULL,
+    modality VARCHAR(100),
+    status ENUM('draft', 'published', 'in_progress', 'closed', 'cancelled', 'awarded') NOT NULL,
+    publication_date DATE,
+    opening_date DATETIME,
+    closing_date DATETIME,
+    estimated_value DECIMAL(15, 2),
+    document_url VARCHAR(255),
+    contact_email VARCHAR(100),
+    contact_phone VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (agency_id) REFERENCES bidding_agencies(id)
+);
+
+-- Tabela de Itens da Licitação
+CREATE TABLE bidding_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    bidding_id INT NOT NULL,
+    item_number VARCHAR(20),
+    description TEXT NOT NULL,
+    quantity DECIMAL(15, 2) NOT NULL,
+    unit VARCHAR(50),
+    estimated_unit_price DECIMAL(15, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (bidding_id) REFERENCES biddings(id)
+);
+
+-- Tabela de Propostas
+CREATE TABLE proposals (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    bidding_id INT NOT NULL,
+    user_id INT NOT NULL,
+    status ENUM('draft', 'submitted', 'won', 'lost', 'cancelled') NOT NULL,
+    submission_date DATETIME,
+    total_value DECIMAL(15, 2),
+    discount_percentage DECIMAL(5, 2),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (bidding_id) REFERENCES biddings(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Tabela de Itens da Proposta
+CREATE TABLE proposal_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    proposal_id INT NOT NULL,
+    bidding_item_id INT NOT NULL,
+    unit_price DECIMAL(15, 2) NOT NULL,
+    total_price DECIMAL(15, 2) NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (proposal_id) REFERENCES proposals(id),
+    FOREIGN KEY (bidding_item_id) REFERENCES bidding_items(id)
+);
+
+-- Tabela de Anexos
+CREATE TABLE attachments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    related_type ENUM('bidding', 'proposal') NOT NULL,
+    related_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(255) NOT NULL,
+    file_size INT,
+    file_type VARCHAR(100),
+    description TEXT,
+    uploaded_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id)
+);
+
+-- Tabela de Configurações de Scraping
+CREATE TABLE scraping_configs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    agency_id INT NOT NULL,
+    url VARCHAR(255) NOT NULL,
+    selectors JSON,
+    schedule VARCHAR(50), -- Formato cron para agendamento
+    last_run DATETIME,
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (agency_id) REFERENCES bidding_agencies(id)
+);
+
+-- Tabela de Logs de Scraping
+CREATE TABLE scraping_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    config_id INT NOT NULL,
+    start_time DATETIME NOT NULL,
+    end_time DATETIME,
+    status ENUM('success', 'partial', 'failed') NOT NULL,
+    items_found INT DEFAULT 0,
+    items_processed INT DEFAULT 0,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (config_id) REFERENCES scraping_configs(id)
+);
+
+-- Tabela para Análise e Relatórios
+CREATE TABLE bidding_analytics (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    reference_date DATE NOT NULL,
+    total_active_biddings INT DEFAULT 0,
+    total_submitted_proposals INT DEFAULT 0,
+    total_won_proposals INT DEFAULT 0,
+    total_value_won DECIMAL(15, 2) DEFAULT 0,
+    success_rate DECIMAL(5, 2) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Tabela para Notificações
+CREATE TABLE notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    type VARCHAR(50),
+    related_type VARCHAR(50),
+    related_id INT,
+    read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);

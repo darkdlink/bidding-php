@@ -194,7 +194,6 @@
                                 </thead>
                                 <tbody>
                                     @php
-                                        // Supondo que você está passando $recentLogs para a view
                                         $recentLogs = App\Models\ScrapingLog::with('config.agency')
                                                                           ->orderBy('created_at', 'desc')
                                                                           ->limit(10)
