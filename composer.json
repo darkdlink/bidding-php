@@ -2,6 +2,8 @@
     "require": {
         "spatie/laravel-permission": "^6.17",
         "barryvdh/laravel-dompdf": "^3.1",
-        "maatwebsite/excel": "^1.1"
+        "maatwebsite/excel": "^1.1",
+        "symfony/dom-crawler": "^7.2",
+        "symfony/css-selector": "^7.2"
     }
 }

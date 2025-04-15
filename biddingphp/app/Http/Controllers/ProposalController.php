@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ProposalExport;
+use Illuminate\Routing\Controller;
 
 class ProposalController extends Controller
 {

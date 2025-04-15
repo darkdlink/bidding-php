@@ -5,19 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Licitações - Sistema Bidding</title>
-    
+
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    
+
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css" rel="stylesheet">
-    
+
     <!-- Select2 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
-    
+
     <!-- DataTables CSS -->
     <link href="https://cdn.datatables.net/1.13.1/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    
+
     <!-- Estilos customizados -->
     <link href="{{ asset('css/app.css') }}" rel="stylesheet">
 </head>
@@ -127,7 +127,7 @@
                             <div class="col-12">
                                 <div class="input-group">
                                     <div class="input-group-text">Busca</div>
-                                    <input type="text" class="form-control" id="search" name="search" 
+                                    <input type="text" class="form-control" id="search" name="search"
                                         placeholder="Buscar..." value="{{ request('search') }}">
                                 </div>
                             </div>
@@ -289,19 +289,19 @@
                                                 <a href="{{ route('biddings.show', $bidding) }}" class="btn btn-sm btn-info" title="Visualizar">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                                
+
                                                 @if($bidding->canSubmitProposal())
                                                     <a href="{{ route('proposals.create', $bidding) }}" class="btn btn-sm btn-success" title="Criar Proposta">
                                                         <i class="fas fa-file-alt"></i>
                                                     </a>
                                                 @endif
-                                                
+
                                                 @can('update', $bidding)
                                                     <a href="{{ route('biddings.edit', $bidding) }}" class="btn btn-sm btn-primary" title="Editar">
                                                         <i class="fas fa-edit"></i>
                                                     </a>
                                                 @endcan
-                                                
+
                                                 @can('delete', $bidding)
                                                     <form action="{{ route('biddings.destroy', $bidding) }}" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir esta licitação?');">
                                                         @csrf
@@ -322,7 +322,7 @@
                                 </tbody>
                             </table>
                         </div>
-                        
+
                         <!-- Paginação -->
                         <div class="mt-3">
                             {{ $biddings->appends(request()->except('page'))->links() }}
@@ -335,20 +335,20 @@
 
     <!-- Bootstrap JS Bundle com Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.3.min.js"></script>
-    
+
     <!-- Select2 -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    
+
     <!-- DataTables -->
     <script src="https://cdn.datatables.net/1.13.1/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.1/js/dataTables.bootstrap5.min.js"></script>
-    
+
     <!-- Scripts customizados -->
     <script src="{{ asset('js/app.js') }}"></script>
-    
+
     <script>
         $(document).ready(function() {
             // Inicializa Select2 para selects
