@@ -1,4 +1,3 @@
-
 <?php
 
 namespace App\Http\Controllers;
@@ -14,6 +13,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\ProposalExport;
 
 class ProposalController extends Controller
 {
@@ -40,6 +42,10 @@ class ProposalController extends Controller
         // Filtros
         if ($request->has('status') && !empty($request->status)) {
             $query->where('status', $request->status);
+        }
+
+        if ($request->has('bidding_id') && !empty($request->bidding_id)) {
+            $query->where('bidding_id', $request->bidding_id);
         }
 
         if ($request->has('search') && !empty($request->search)) {
@@ -128,11 +134,71 @@ class ProposalController extends Controller
         // Verifica se a proposta pode ser editada
         if (!$proposal->canEdit()) {
             return redirect()->route('proposals.show', $proposal)
-                            ->with('error', 'Esta proposta não pode ser editada.');
+                          ->with('error', 'Esta proposta não pode ser editada.');
         }
 
         try {
             DB::beginTransaction();
+
+            // Atualiza os itens da proposta
+            if ($request->has('items') && is_array($request->items)) {
+                foreach ($request->items as $itemId => $itemData) {
+                    $item = ProposalItem::find($itemId);
+
+                    if ($item && $item->proposal_id == $proposal->id) {
+                        $this->calculationService->updateItemPrice($item, $itemData['unit_price']);
+
+                        if (isset($itemData['notes'])) {
+                            $item->notes = $itemData['notes'];
+                            $item->save();
+                        }
+                    }
+                }
+            }
+
+            // Processa os anexos
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $path = $file->store('proposal_attachments');
+
+                    $attachment = new Attachment([
+                        'related_type' => 'proposal',
+                        'related_id' => $proposal->id,
+                        'file_name' => $file->getClientOriginalName(),
+                        'file_path' => $path,
+                        'file_size' => $file->getSize(),
+                        'file_type' => $file->getMimeType(),
+                        'description' => $request->input('attachment_description', ''),
+                        'uploaded_by' => Auth::id(),
+                    ]);
+
+                    $attachment->save();
+                }
+            }
+
+            // Remove anexos marcados para exclusão
+            if ($request->has('remove_attachments') && is_array($request->remove_attachments)) {
+                $attachments = Attachment::whereIn('id', $request->remove_attachments)
+                                        ->where('related_type', 'proposal')
+                                        ->where('related_id', $proposal->id)
+                                        ->get();
+
+                foreach ($attachments as $attachment) {
+                    Storage::delete($attachment->file_path);
+                    $attachment->delete();
+                }
+            }
+
+            // Atualiza as notas da proposta
+            if ($request->has('notes')) {
+                $proposal->notes = $request->notes;
+                $proposal->save();
+            }
+
+            // Aplica desconto geral se solicitado
+            if ($request->has('apply_discount') && $request->has('discount_percentage')) {
+                $this->calculationService->applyOverallDiscount($proposal, $request->discount_percentage);
+            }
 
             // Atualiza os totais da proposta
             $proposal->updateTotals();
@@ -292,62 +358,77 @@ class ProposalController extends Controller
             return back()->with('error', 'Erro ao duplicar proposta: ' . $e->getMessage());
         }
     }
-} itens da proposta
-            if ($request->has('items') && is_array($request->items)) {
-                foreach ($request->items as $itemId => $itemData) {
-                    $item = ProposalItem::find($itemId);
 
-                    if ($item && $item->proposal_id == $proposal->id) {
-                        $this->calculationService->updateItemPrice($item, $itemData['unit_price']);
+    /**
+     * Compara múltiplas propostas
+     */
+    public function compare(Request $request)
+    {
+        $proposalIds = $request->input('proposals', []);
 
-                        if (isset($itemData['notes'])) {
-                            $item->notes = $itemData['notes'];
-                            $item->save();
-                        }
-                    }
-                }
-            }
+        if (empty($proposalIds) || count($proposalIds) < 2) {
+            return redirect()->route('proposals.index')
+                           ->with('error', 'Selecione pelo menos duas propostas para comparar.');
+        }
 
-            // Processa os anexos
-            if ($request->hasFile('attachments')) {
-                foreach ($request->file('attachments') as $file) {
-                    $path = $file->store('proposal_attachments');
+        // Busca as propostas e verifica se pertencem ao usuário
+        $proposals = Proposal::with(['bidding', 'items', 'items.bidding_item'])
+                           ->whereIn('id', $proposalIds)
+                           ->where('user_id', Auth::id())
+                           ->get();
 
-                    $attachment = new Attachment([
-                        'file_name' => $file->getClientOriginalName(),
-                        'file_path' => $path,
-                        'file_size' => $file->getSize(),
-                        'file_type' => $file->getMimeType(),
-                        'description' => $request->input('attachment_description', ''),
-                        'uploaded_by' => Auth::id(),
-                    ]);
+        if ($proposals->count() < 2) {
+            return redirect()->route('proposals.index')
+                           ->with('error', 'Não foi possível encontrar as propostas para comparação.');
+        }
 
-                    $proposal->attachments()->save($attachment);
-                }
-            }
+        // Verifica se todas as propostas são para a mesma licitação
+        $biddingId = $proposals->first()->bidding_id;
+        if ($proposals->where('bidding_id', '!=', $biddingId)->count() > 0) {
+            return redirect()->route('proposals.index')
+                           ->with('error', 'Só é possível comparar propostas da mesma licitação.');
+        }
 
-            // Remove anexos marcados para exclusão
-            if ($request->has('remove_attachments') && is_array($request->remove_attachments)) {
-                $attachments = Attachment::whereIn('id', $request->remove_attachments)
-                                        ->where('related_type', 'proposal')
-                                        ->where('related_id', $proposal->id)
-                                        ->get();
+        // Calcula métricas para comparação
+        foreach ($proposals as $proposal) {
+            $proposal->profitAnalysis = $this->calculationService->calculateEstimatedProfit($proposal);
+        }
 
-                foreach ($attachments as $attachment) {
-                    Storage::delete($attachment->file_path);
-                    $attachment->delete();
-                }
-            }
+        return view('proposals.compare', compact('proposals'));
+    }
 
-            // Atualiza as notas da proposta
-            if ($request->has('notes')) {
-                $proposal->notes = $request->notes;
-                $proposal->save();
-            }
+    /**
+     * Gera um relatório PDF da proposta
+     */
+    public function generatePdf(Proposal $proposal)
+    {
+        // Verifica se a proposta pertence ao usuário logado
+        if ($proposal->user_id !== Auth::id()) {
+            abort(403);
+        }
 
-            // Aplica desconto geral se solicitado
-            if ($request->has('apply_discount') && $request->has('discount_percentage')) {
-                $this->calculationService->applyOverallDiscount($proposal, $request->discount_percentage);
-            }
+        $proposal->load(['bidding', 'bidding.agency', 'items', 'items.bidding_item', 'user']);
 
-            // Atualiza os
+        // Calcula o lucro estimado
+        $profitAnalysis = $this->calculationService->calculateEstimatedProfit($proposal);
+
+        $pdf = PDF::loadView('proposals.pdf', compact('proposal', 'profitAnalysis'));
+
+        return $pdf->download('proposta-' . $proposal->id . '.pdf');
+    }
+
+    /**
+     * Exporta uma proposta para Excel
+     */
+    public function exportExcel(Proposal $proposal)
+    {
+        // Verifica se a proposta pertence ao usuário logado
+        if ($proposal->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $proposal->load(['bidding', 'bidding.agency', 'items', 'items.bidding_item', 'user']);
+
+        return Excel::download(new ProposalExport($proposal), 'proposta-' . $proposal->id . '.xlsx');
+    }
+}

@@ -10,6 +10,7 @@ use App\Http\Requests\StoreBiddingRequest;
 use App\Services\ScrapingService;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
