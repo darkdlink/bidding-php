@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Activity;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 
 class ActivityService

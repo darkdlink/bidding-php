@@ -11,6 +11,7 @@ use App\Mail\BiddingNotification;
 use App\Mail\ProposalNotification;
 use App\Jobs\SendBiddingNotifications;
 
+
 class NotificationService
 {
     /**
